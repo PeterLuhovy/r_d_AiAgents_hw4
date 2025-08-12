@@ -1,0 +1,8 @@
+episodes: 500
+bins_per_dimension: 10
+n_actions: 3
+alpha: 0.1
+gamma: 0.99
+epsilon_final: 0.05
+total_states: 1000000
+avg_reward_last_20: 149.57629472423645

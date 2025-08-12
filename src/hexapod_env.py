@@ -19,16 +19,16 @@ class SimpleHexapodEnv(gym.Env):
         super().__init__()
         
         lowParams = [0] * 6
-        lowParams[0] = -20      # x_pozícia minimum [m]
-        lowParams[1] = -20      # y_pozícia minimum [m]  
+        lowParams[0] = -10      # x_pozícia minimum [m]
+        lowParams[1] = -10      # y_pozícia minimum [m]  
         lowParams[2] = -1       # x_rýchlosť minimum [m/s]
         lowParams[3] = -1       # y_rýchlosť minimum [m/s]
         lowParams[4] = -np.pi   # orientácia minimum [rad]
         lowParams[5] = -2       # uhlová rýchlosť minimum [rad/s]
 
         highParams = [0] * 6
-        highParams[0] = 20      # x_pozícia maximum  [m]
-        highParams[1] = 20      # y_pozícia maximum   [m]
+        highParams[0] = 10      # x_pozícia maximum  [m]
+        highParams[1] = 10      # y_pozícia maximum   [m]
         highParams[2] = 1       # x_rýchlosť maximum [m/s]
         highParams[3] = 1       # y_rýchlosť maximum [m/s]  
         highParams[4] = np.pi   # orientácia maximum [rad]
@@ -51,7 +51,7 @@ class SimpleHexapodEnv(gym.Env):
         self.velocity = np.array([0.0, 0.0])  # [vx, vy]
         self.orientation = 0.0  # orientácia v radiánoch
         self.angular_velocity = 0.0  # uhlová rýchlosť v radiánoch za sekundu
-        self.max_steps = 200  # Maximálny počet krokov v epizóde
+        self.max_steps = 20000  # Maximálny počet krokov v epizóde
         self.current_step = 0  # Počítadlo krokov
         self.dt = 0.1  # Časový krok simulácie (0.1 sekundy)
 
@@ -64,47 +64,71 @@ class SimpleHexapodEnv(gym.Env):
             [self.angular_velocity]
         ]).astype(np.float32)
     
+    def _dist_to_north_edge(self, pos=None):
+        # vzdialenosť k severnej hrane (y=+20), clamp na >=0
+        y = (self.position[1] if pos is None else pos[1])
+        return max(0.0, 20.0 - float(y))
+
+    def _reached_north_edge(self, tol=0.05):
+        return self.position[1] >= 20.0 - tol
+    
     def _wrap_angle(self, angle):
         """Zabezpečí že uhol zostane medzi -π a +π"""
         return ((angle + np.pi) % (2 * np.pi)) - np.pi
     
-    def _calculate_reward(self):
-        """Vypočíta odmenu na základe aktuálneho stavu"""
-        reward = 0
+    def _calculate_reward(self, success=False):
+        """
+        Brutálne sever:
+        + silný bonus za heading k +Y
+        + odmena za Δy, ALE škrtaná bočným driftom
+        - tvrdá penalizácia za |x| a |vx| (držať koridor)
+        - časový trest
+        + terminálny bonus pri dotyku severu
+        """
+        # progres iba na sever
+        y_now = float(self.position[1])
+        dy = y_now - self.prev_y                 # >0 ak ideš hore
 
-        # A) POZITÍVNE REWARDS - čo odmeňuješ
-        positiveReward = 0
+        # heading k severu (target = +Y = pi/2)
+        angle_err = self.orientation - (np.pi/2)
+        heading_term = np.cos(angle_err)         # [-1,1]
+        heading_bonus = 0.3 * heading_term       # silný tlak na natočenie
 
-        # Odmena za to že je ďaleko od začiatku
-        distance_from_origin = np.sqrt(self.position[0]**2 + self.position[1]**2)
-        positiveReward += distance_from_origin * 0.1  # koeficient 0.1
+        # bočný drift a vybočenie
+        vx = float(self.velocity[0])
+        side_drift_pen = 0.15 * abs(vx)          # trest za bočnú rýchlosť
+        corridor_pen   = 0.02 * abs(self.position[0])  # trest za |x| od stredovej osi
 
-        reward += positiveReward
-        # B) NEGATÍVNE REWARDS - čo trestáš  
-        negativeReward = 0
-        # Trest za rýchlosť mimo rozsahu
-        if abs(self.velocity[0]) > 1 or abs(self.velocity[1]) > 1:
-            negativeReward = 0.5  # koeficient 0.5
-        reward -= negativeReward  # trest za rýchlosť mimo rozsahu
+        # časový trest
+        time_penalty = 0.02
 
-        # C) SHAPE REWARDS - jemné vedenie
-        shapeReward = 0
-        # Malá odmena za každý krok (motivácia prežiť)
-        shapeReward += 1.0
-        
-        reward += shapeReward
+        # odmena za Δy, ale „škrtáme“ ju pri bočnom drifte:
+        dy_effective = max(0.0, dy) * max(0.0, 1.0 - min(1.0, 2.0*abs(vx)))  # keď bočíš, Δy sa zmenší
+        dy_reward = 8.0 * dy_effective
 
-        return reward
+        reward = dy_reward + heading_bonus - side_drift_pen - corridor_pen - time_penalty
+
+        if success:
+            reward += 12.0  # veľký koncový bonus
+
+        # update pre ďalší krok
+        self.prev_y = y_now
+        return float(reward)
 
     def reset(self, seed=None, options=None):
         # Reset the state of the environment to an initial state
         if self.debug:
             print("Resetujem hexapod environment!")
-        self.position = np.array([0.0, 0.0])  # [x, y]
-        self.velocity = np.array([0.0, 0.0])  # [vx, vy]
-        self.orientation = 0.0  # orientácia v radiánoch
+        self.position = np.array([
+            np.random.uniform(-8.0, 8.0),   # x
+            np.random.uniform(-8.0, 8.0)    # y
+            ], dtype=float)
+        self.velocity = np.array([0.0, 0.0], dtype=float)
+        self.orientation = float(np.random.uniform(-np.pi, np.pi))
         self.angular_velocity = 0.0  # uhlová rýchlosť v radiánoch za sekundu
         self.current_step = 0  # Počítadlo krokov
+        self.prev_dist_to_north = self._dist_to_north_edge()
+        self.prev_y = float(self.position[1])
         return self._get_observation(), {}
 
     def step(self, action):
@@ -132,23 +156,25 @@ class SimpleHexapodEnv(gym.Env):
         self.position += self.velocity * self.dt
         self.orientation += self.angular_velocity * self.dt
         self.orientation = self._wrap_angle(self.orientation)  # Udržuj uhol medzi -π a +π
+        success = self._reached_north_edge()
         
         # 5. Create observation
         observation = self._get_observation()
         
         # 6. Calculate reward
-        reward = self._calculate_reward()
+        
+        reward = self._calculate_reward(success=success)
         
         # 7. Check termination
         terminated = False
-        if self.current_step >= self.max_steps:
-            terminated = True
-        if abs(self.position[0]) > 20 or abs(self.position[1]) > 20:
-            terminated = True  # robot vyšiel zo sveta
+        terminated = success or (self.current_step >= self.max_steps) \
+             or (abs(self.position[0]) > 20) or (abs(self.position[1]) > 20 + 1e-6)
         
         # 8. Truncated and info
         truncated = False
         info = {}
+
+
 
         # 9. Return observation, reward, terminated, truncated, info
         if self.debug:

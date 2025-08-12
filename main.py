@@ -2,6 +2,7 @@ import numpy as np
 import os, time, json
 from src.hexapod_env import SimpleHexapodEnv
 from src.q_learning import QLearningAgent
+from src.visualization import draw_and_save_trajectory
 
 
 def train(env, agent, episodes=500, log_every=20):
@@ -74,7 +75,12 @@ if __name__ == "__main__":
     env = SimpleHexapodEnv(debug=False)
     agent = QLearningAgent(debug=False)
 
-    rewards = train(env, agent, episodes=500, log_every=20)
+    print("")
+    print("")
+    print("🔄 Spúšťam tréning Q-learning agenta...")
+    print("episodes: 5 000")
+    print("log_every: 100")
+    rewards = train(env, agent, episodes=5000, log_every=100)
 
     # === ULOŽENIE DO PRIEČINKA logs ===
     timestamp = time.strftime("%Y%m%d_%H%M%S")
@@ -101,5 +107,7 @@ if __name__ == "__main__":
     with open(os.path.join(log_dir, "meta.txt"), "w", encoding="utf-8") as f:
         for k, v in meta.items():
             f.write(f"{k}: {v}\n")
+
+    draw_and_save_trajectory(env, agent, log_dir, steps=200, greedy=True)
 
     print(f"✓ Tréning hotový, všetko uložené do: {log_dir}")
