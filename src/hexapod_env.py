@@ -11,8 +11,10 @@ class SimpleHexapodEnv(gym.Env):
     This environment simulates a hexapod robot with six legs.
     """
 
-    def __init__(self):
-        print("Vytváram nový hexapod environment!")
+    def __init__(self, debug=False):
+        self.debug = debug
+        if self.debug:
+            print("Vytváram nový hexapod environment!")
 
         super().__init__()
         
@@ -96,7 +98,8 @@ class SimpleHexapodEnv(gym.Env):
 
     def reset(self, seed=None, options=None):
         # Reset the state of the environment to an initial state
-        print("Resetujem hexapod environment!")
+        if self.debug:
+            print("Resetujem hexapod environment!")
         self.position = np.array([0.0, 0.0])  # [x, y]
         self.velocity = np.array([0.0, 0.0])  # [vx, vy]
         self.orientation = 0.0  # orientácia v radiánoch
@@ -107,7 +110,8 @@ class SimpleHexapodEnv(gym.Env):
     def step(self, action):
         # 1. Update step counter
         self.current_step += 1
-        print(f"Step: {self.current_step} ---> Action: {action}")
+        if self.debug:
+            print(f"Step: {self.current_step} ---> Action: {action}")
         
         # 2. Apply actions
         if action == 0:  # vpred
@@ -133,7 +137,7 @@ class SimpleHexapodEnv(gym.Env):
         observation = self._get_observation()
         
         # 6. Calculate reward
-        reward = self._calculate_reward()  # Toto ešte musíš napísať
+        reward = self._calculate_reward()
         
         # 7. Check termination
         terminated = False
@@ -147,20 +151,8 @@ class SimpleHexapodEnv(gym.Env):
         info = {}
 
         # 9. Return observation, reward, terminated, truncated, info
-        print(f"Position: {self.position}, Velocity: {self.velocity}, Orientation: {self.orientation}, Angular Velocity: {self.angular_velocity}")
-        print(f"Observation: {observation}, Reward: {reward}, Terminated: {terminated}, Truncated: {truncated}, Info: {info}")
-        
+        if self.debug:
+            print(f"Position: {self.position}, Velocity: {self.velocity}, Orientation: {self.orientation}, Angular Velocity: {self.angular_velocity}")
+            print(f"Observation: {observation}, Reward: {reward}, Terminated: {terminated}, Truncated: {truncated}")
         return observation, reward, terminated, truncated, info
-
-
-    
-
-
-    def render(self, mode='human'):
-        # Render the environment (optional)
-        pass
-
-    def close(self):
-        # Clean up resources (optional)
-        pass
 
