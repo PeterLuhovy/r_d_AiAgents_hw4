@@ -43,8 +43,6 @@ class QLearningAgent:
     def discretize_state(self, continuous_state):
         """
         STATE DISCRETIZATION *(prevod plynulých čísel na kategórie)*
-        
-        Príklad: pozícia x=15.7m sa stane kategória "8" (z 10 možných 0-9)
         """
         discrete_state = []
         state_names = ['x_pos', 'y_pos', 'x_vel', 'y_vel', 'orientation', 'angular_vel']

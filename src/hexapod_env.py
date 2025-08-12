@@ -39,14 +39,6 @@ class SimpleHexapodEnv(gym.Env):
         # Q-learning (diskrétne akcie):
         self.action_space = gym.spaces.Discrete(3)     # 0 = vpred, 1 = vľavo, 2 = vpravo
 
-        # pre PPO (kontinuálne akcie):
-        # self.action_space = gym.spaces.Box(
-        #    low=np.array([-1, -1]), 
-        #    high=np.array([1, 1]), 
-        #    dtype=np.float32
-        #)
-        # [sila_vpred, sila_otočenia] každá od -1 do +1
-
         self.position = np.array([0.0, 0.0])  # [x, y]
         self.velocity = np.array([0.0, 0.0])  # [vx, vy]
         self.orientation = 0.0  # orientácia v radiánoch
@@ -87,22 +79,22 @@ class SimpleHexapodEnv(gym.Env):
         """
         # progres iba na sever
         y_now = float(self.position[1])
-        dy = y_now - self.prev_y                 # >0 ak ideš hore
+        dy = y_now - self.prev_y
 
         # heading k severu (target = +Y = pi/2)
         angle_err = self.orientation - (np.pi/2)
-        heading_term = np.cos(angle_err)         # [-1,1]
-        heading_bonus = 0.3 * heading_term       # silný tlak na natočenie
+        heading_term = np.cos(angle_err)
+        heading_bonus = 0.3 * heading_term
 
         # bočný drift a vybočenie
         vx = float(self.velocity[0])
-        side_drift_pen = 0.15 * abs(vx)          # trest za bočnú rýchlosť
-        corridor_pen   = 0.02 * abs(self.position[0])  # trest za |x| od stredovej osi
+        side_drift_pen = 0.15 * abs(vx)
+        corridor_pen   = 0.02 * abs(self.position[0])
 
         # časový trest
         time_penalty = 0.02
 
-        # odmena za Δy, ale „škrtáme“ ju pri bočnom drifte:
+        # odmena za Δy
         dy_effective = max(0.0, dy) * max(0.0, 1.0 - min(1.0, 2.0*abs(vx)))  # keď bočíš, Δy sa zmenší
         dy_reward = 8.0 * dy_effective
 
@@ -139,7 +131,6 @@ class SimpleHexapodEnv(gym.Env):
         
         # 2. Apply actions
         if action == 0:  # vpred
-            # Pridaj silu v smere kde robot pozerá
             force = 0.1
             self.velocity[0] += force * np.cos(self.orientation)  # x komponenta
             self.velocity[1] += force * np.sin(self.orientation)  # y komponenta
@@ -152,7 +143,6 @@ class SimpleHexapodEnv(gym.Env):
         self.velocity *= 0.9
         self.angular_velocity *= 0.8
         
-        # 4. Update position and orientation (TOTO TI CHÝBALO!)
         self.position += self.velocity * self.dt
         self.orientation += self.angular_velocity * self.dt
         self.orientation = self._wrap_angle(self.orientation)  # Udržuj uhol medzi -π a +π
